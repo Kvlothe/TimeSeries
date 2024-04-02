@@ -8,8 +8,10 @@ from sklearn.metrics import mean_squared_error
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from scipy.signal import periodogram
+from pmdarima import auto_arima
 
 
 def check_for_gaps(df):
@@ -26,22 +28,6 @@ def check_for_gaps(df):
     gaps = df_reindexed[df_reindexed['Revenue'].isnull()]
 
     print(gaps)
-
-
-def check_stationarity(df):
-    adf_result = adfuller(df['Revenue'])
-
-    print('ADF Statistic: %f' % adf_result[0])
-    print('p-value: %f' % adf_result[1])
-    print('Critical Values:')
-    for key, value in adf_result[4].items():
-        print('\t%s: %.3f' % (key, value))
-
-    # Interpretation
-    if adf_result[0] < adf_result[4]["5%"]:
-        print("The time series is stationary at a 5% level.")
-    else:
-        print("The time series is not stationary at a 5% level.")
 
 
 def plot_realization(df):
@@ -109,12 +95,12 @@ df = pd.read_csv("teleco_time_series .csv")
 # print(df.shape)
 
 # Call function to check for any gaps in the dataset - does each day have a corresponding revenue
-check_for_gaps(df)
+# check_for_gaps(df)
 
 # Normalize only the 'Revenue' column
 scaler = MinMaxScaler()
 df['Revenue'] = scaler.fit_transform(df[['Revenue']])
-df.to_csv('cleaned_data.csv')
+
 plot_realization(df)
 
 # Applying first-order differencing
@@ -129,12 +115,24 @@ train_size = int(len(df) * 0.8)
 test_size = len(df) - train_size
 train, test = df.iloc[0:train_size], df.iloc[train_size:len(df)]
 df['Revenue'] = df['Revenue'].astype(float)
+df.to_csv('cleaned_data.csv')
 
 # Split the data into train and test sets
 train = df['Revenue'][:train_size]
 test = df['Revenue'][train_size:]
 
-model = SARIMAX(df['Revenue'], order=(1,1,0), seasonal_order=(1,1,0,7))
+# Perform a stepwise search to find the best ARIMA model
+stepwise_model = auto_arima(train, start_p=1, start_q=1,
+                            max_p=3, max_q=3, m=12,
+                            start_P=0, seasonal=False,
+                            d=1, D=1, trace=True,
+                            error_action='ignore',
+                            suppress_warnings=True,
+                            stepwise=True)
+
+print(stepwise_model.aic())
+
+model = SARIMAX(df['Revenue'], order=(1,1,0), seasonal_order=(1,1,0,52))
 results = model.fit()
 model_fit = model.fit(disp=False)
 
