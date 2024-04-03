@@ -32,9 +32,10 @@ def check_for_gaps(df):
 
 def plot_realization(df):
     # Assuming 'Day' starts from 0 and represents the count of days, we create a date range starting from Jan 1, 2020
-    start_date = pd.to_datetime('2020-01-01')
-    df['Day'] = pd.date_range(start=start_date, periods=len(df), freq='D')
-    df.set_index('Day', inplace=True)
+    start_date = pd.to_datetime('2020-01-01')  # replace with your actual start date
+    df['Date'] = start_date + pd.to_timedelta(df['Day'], unit='D')
+    df.set_index('Date', inplace=True)
+    df.index.freq = 'D'  # Set the frequency to daily
 
     # Plotting the revenue over time
     plt.figure(figsize=(10, 6))
@@ -121,10 +122,11 @@ df.to_csv('cleaned_data.csv')
 train = df['Revenue'][:train_size]
 test = df['Revenue'][train_size:]
 
-# Perform a stepwise search to find the best ARIMA model
+# Perform a stepwise search to find the best SARIMAX model
 stepwise_model = auto_arima(train, start_p=1, start_q=1,
-                            max_p=3, max_q=3, m=12,
-                            start_P=0, seasonal=False,
+                            max_p=3, max_q=3, m=52,
+                            start_P=0, start_Q=0, max_P=3, max_Q=3,
+                            seasonal=True,
                             d=1, D=1, trace=True,
                             error_action='ignore',
                             suppress_warnings=True,
@@ -132,8 +134,9 @@ stepwise_model = auto_arima(train, start_p=1, start_q=1,
 
 print(stepwise_model.aic())
 
-model = SARIMAX(df['Revenue'], order=(1,1,0), seasonal_order=(1,1,0,52))
-results = model.fit()
+model = SARIMAX(df['Revenue'], order=(1,1,0), seasonal_order=(3,1,0,52), enforce_stationarity=False, enforce_invertibility=False)
+results = model.fit(disp=False)
+
 model_fit = model.fit(disp=False)
 
 # Summarize model results
